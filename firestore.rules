@@ -1,0 +1,153 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Project: kpj-gudang-2026 (Cloud Firestore Standard Edition)
+//
+// Collection: products
+// Document ID: {productId} (1..128 chars)
+// Fields:
+//   - name: string (required, non-empty, <= 120 chars) - Product name
+//   - added: int (required, >= 0) - Total stock added
+//   - sold: int (required, >= 0) - Total stock sold
+//   - buyPrice: int (required, >= 0) - Purchase/cost price per unit
+//   - sellPrice: int (required, >= 0) - Selling price per unit
+//   - discountAmount: int (required, >= 0) - Global discount amount per unit
+//   - salesByDay: map<string, int> (required, <= 1000 entries) - Daily sales counts
+//   - salesBySalesman: map<string, map<string, int>> (required, <= 100 entries) - Sales per salesman by date key
+//   - salesmanDiscounts: map<string, int> (required, <= 100 entries) - Per-salesman discount overrides
+//   - order: int (optional, >= 0) - Display sort order
+//
+// Collection: meta
+// Document ID: config
+// Fields:
+//   - salesmen: list<string> (required, <= 100 entries) - Configured salesman names
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    // Check if the request comes from an authenticated Firebase Auth user
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Validate required fields exist on the incoming document
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // Validate that the incoming document contains only allowed fields
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // Validate non-empty string within length bounds
+    function isValidString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    // Validate non-negative integer
+    function isNonNegativeInt(val) {
+      return val is int && val >= 0;
+    }
+
+    // Validate list type and maximum size
+    function isValidList(listVal, maxSize) {
+      return listVal is list && listVal.size() <= maxSize;
+    }
+
+    // Validate map type and maximum entry count
+    function isValidBoundedMap(mapVal, maxSize) {
+      return mapVal is map && mapVal.size() <= maxSize;
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidProduct(data) {
+      let requiredFields = [
+        'name',
+        'added',
+        'sold',
+        'buyPrice',
+        'sellPrice',
+        'discountAmount',
+        'salesByDay',
+        'salesBySalesman',
+        'salesmanDiscounts'
+      ];
+      let allowedFields = [
+        'name',
+        'added',
+        'sold',
+        'buyPrice',
+        'sellPrice',
+        'discountAmount',
+        'salesByDay',
+        'salesBySalesman',
+        'salesmanDiscounts',
+        'order'
+      ];
+
+      return hasRequiredFields(requiredFields) &&
+             hasOnlyAllowedFields(allowedFields) &&
+             isValidString(data.name, 1, 120) &&
+             isNonNegativeInt(data.added) &&
+             isNonNegativeInt(data.sold) &&
+             isNonNegativeInt(data.buyPrice) &&
+             isNonNegativeInt(data.sellPrice) &&
+             isNonNegativeInt(data.discountAmount) &&
+             isValidBoundedMap(data.salesByDay, 1000) &&
+             isValidBoundedMap(data.salesBySalesman, 100) &&
+             isValidBoundedMap(data.salesmanDiscounts, 100) &&
+             (!('order' in data) || isNonNegativeInt(data.order));
+    }
+
+    function isValidConfig(data) {
+      return hasRequiredFields(['salesmen']) &&
+             hasOnlyAllowedFields(['salesmen']) &&
+             isValidList(data.salesmen, 100);
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    // Warehouse inventory products
+    match /products/{productId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+                       productId.size() > 0 &&
+                       productId.size() <= 128 &&
+                       isValidProduct(request.resource.data);
+      allow update: if isAuthenticated() &&
+                       isValidProduct(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    // Application configuration (salesmen roster)
+    match /meta/config {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() &&
+                               isValidConfig(request.resource.data);
+      allow delete: if false;
+    }
+
+    // ===============================================================
+    // Default Deny
+    // ===============================================================
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

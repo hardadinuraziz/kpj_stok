@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "235212183893",
+    "project_id": "kpj-gudang-2026",
+    "storage_bucket": "kpj-gudang-2026.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:235212183893:android:27cb1134e35b0c132777dc",
+        "android_client_info": {
+          "package_name": "com.example.kpj"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBanbZit4zy_TnmQYP8X2NQfpAy2iS6zaY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
